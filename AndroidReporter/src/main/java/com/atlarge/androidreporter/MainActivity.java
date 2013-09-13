@@ -78,7 +78,7 @@ public class MainActivity extends Activity {
 
                     sep = "";
                     sb.append(String.format("Picture sizes: "));
-                    for (Camera.Size sz : mPreviewSizes) {
+                    for (Camera.Size sz : mPictureSizes) {
                         sb.append(sep); sep=",";
                         sb.append(String.format("%dx%d", sz.width, sz.height));
                     }
@@ -100,8 +100,9 @@ public class MainActivity extends Activity {
                 sb.append(String.format("%d cameras:\n", mInfos.size()));
                 int i=0;
                 for (InfoSingleCamera ci : mInfos) {
-                    sb.append(String.format("\nCamera %d:\n", i++));
+                    sb.append(String.format("\nCamera %d\n", i++));
                     sb.append(ci.toString());
+                    sb.append("\n");
                 }
                 return sb.toString();
             }
@@ -151,7 +152,7 @@ public class MainActivity extends Activity {
             PhoneInfo pi = new PhoneInfo();
             outputText.append(pi.toString());
         }
-        outputText.append("Finished!\n");
+        outputText.append("\nFinished!\n");
 
         // Ensure scroll to end of text
         scroller.post(new Runnable() {
