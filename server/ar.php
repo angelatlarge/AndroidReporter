@@ -64,83 +64,83 @@
 	}
 	
 	function saveNewPhoneInfo($db,$os_codename,$os_release,$os_increment,$device,$model,$product) {
-			$stmt = $db->prepare('INSERT INTO phones
-				(os_codename		
-				,os_release	 	
-				,os_increment 	
-				,device		 	
-				,model		 	
-				,product)
-			VALUES
-				(:os_codename
-				,:os_release
-				,:os_increment
-				,:device
-				,:model
-				,:product
-				)');
-			if ($stmt===false) {
-				// Prepare failed
+		$stmt = $db->prepare('INSERT INTO phones
+			(os_codename		
+			,os_release	 	
+			,os_increment 	
+			,device		 	
+			,model		 	
+			,product)
+		VALUES
+			(:os_codename
+			,:os_release
+			,:os_increment
+			,:device
+			,:model
+			,:product
+			)');
+		if ($stmt===false) {
+			// Prepare failed
+			return -1;
+		} else {
+			$stmt->bindValue(':os_codename', 	$os_codename, 	SQLITE3_TEXT);
+			$stmt->bindValue(':os_release', 	$os_release, 	SQLITE3_TEXT);
+			$stmt->bindValue(':os_increment', 	$os_increment,	SQLITE3_TEXT);
+			$stmt->bindValue(':device', 		$device, 		SQLITE3_TEXT);
+			$stmt->bindValue(':model', 			$model, 		SQLITE3_TEXT);
+			$stmt->bindValue(':product', 		$product, 		SQLITE3_TEXT);
+			$res = $stmt->execute();
+			if (! $res ) {
+				// Insert failed
+				$stmt->close();
 				return -1;
 			} else {
-				$stmt->bindValue(':os_codename', 	$os_codename, 	SQLITE3_TEXT);
-				$stmt->bindValue(':os_release', 	$os_release, 	SQLITE3_TEXT);
-				$stmt->bindValue(':os_increment', 	$os_increment,	SQLITE3_TEXT);
-				$stmt->bindValue(':device', 		$device, 		SQLITE3_TEXT);
-				$stmt->bindValue(':model', 			$model, 		SQLITE3_TEXT);
-				$stmt->bindValue(':product', 		$product, 		SQLITE3_TEXT);
-				$res = $stmt->execute();
-				if (! $res ) {
-					// Insert failed
-					$stmt->close();
-					return -1;
-				} else {
-					$stmt->close();
-					return $db->lastInsertRowid();
-				}
-			}			
+				$stmt->close();
+				return $db->lastInsertRowid();
+			}
+		}			
 	}
 
 	function saveCameraInfo($db,$idPi,$facingId,$facingString) {
-			$stmt = $db->prepare('INSERT INTO phone_cameras
-				(phone_id		
-				,facing_id		
-				,facing_string)
-				VALUES (
-				:phone_id		
-				,:facing_id		
-				,:facing_string)');
-			if ($stmt===false) {
-				// Prepare failed
+		$stmt = $db->prepare('INSERT INTO phone_cameras
+			(phone_id		
+			,facing_id		
+			,facing_string)
+			VALUES (
+			:phone_id		
+			,:facing_id		
+			,:facing_string)');
+		if ($stmt===false) {
+			// Prepare failed
+			return -1;
+		} else {
+			$stmt->bindValue(':phone_id', 		$idPi, 				SQLITE3_INTEGER);
+			$stmt->bindValue(':facing_id', 		intval($facingId), 	SQLITE3_INTEGER);
+			$stmt->bindValue(':facing_string', 	$facingString,		SQLITE3_TEXT);
+			$res = $stmt->execute();
+			if (! $res ) {
+				// Insert failed
+				$stmt->close();
 				return -1;
 			} else {
-				$stmt->bindValue(':phone_id', 		$idPi, 			SQLITE3_INTEGER);
-				$stmt->bindValue(':facing_id', 		$facingId, 		SQLITE3_INTEGER);
-				$stmt->bindValue(':facing_string', 	$facingString,	SQLITE3_TEXT);
-				$res = $stmt->execute();
-				if (! $res ) {
-					// Insert failed
-					$stmt->close();
-					return -1;
-				} else {
-					$stmt->close();
-					return $db->lastInsertRowid();
-				}
+				$stmt->close();
+				return $db->lastInsertRowid();
 			}
+		}
 	}
 
 	function getSizeId($db, $w, $h) {
 		$stmt = $db->prepare('SELECT id FROM resolutions WHERE (w=:w) AND (h=:h)');
-		$stmt->bindValue(':w', $w, SQLITE3_INTEGER);
-		$stmt->bindValue(':h', $h, SQLITE3_INTEGER);
-		$qr = $stmt.execute();
+		$stmt->bindValue(':w', intval($w), SQLITE3_INTEGER);
+		$stmt->bindValue(':h', intval($h), SQLITE3_INTEGER);
+		$qr = $stmt->execute();
 		if ( ($qr) && ($row = $qr->fetchArray())) {
 			return $row[0];
 		} else {
-			$stmt = $db->prepare('INSERT INTO resolutions (w,h) values (:w. :h)');
-			$stmt->bindValue(':w', $w, SQLITE3_INTEGER);
-			$stmt->bindValue(':h', $h, SQLITE3_INTEGER);
-			if (! $stmt.execute() ) {
+			$stmt = $db->prepare('INSERT INTO resolutions (w,h) values (:w, :h)');
+			$stmt->bindValue(':w', intval($w), SQLITE3_INTEGER);
+			$stmt->bindValue(':h', intval($h), SQLITE3_INTEGER);
+			if (! $stmt->execute() ) {
 				// Insert failed
 				return -1;
 			} else {
@@ -148,6 +148,36 @@
 			}
 		}
 	}
+
+	function saveCameraSize($db,$idCi,$tableName,$w,$h) {
+		$sizeId = getSizeId($db, $w, $h);
+		$stmt = $db->prepare(sprintf("INSERT INTO %s (camera_id, resolution_id) values (:camera_id, :resolution_id)", $tableName));
+		if ($stmt===false) {
+			// Prepare failed
+			return -1;
+		} else {
+			$stmt->bindValue(':camera_id', 		$idCi, 		SQLITE3_INTEGER);
+			$stmt->bindValue(':resolution_id', 	$sizeId, 	SQLITE3_INTEGER);
+			$res = $stmt->execute();
+			if (! $res ) {
+				// Insert failed
+				$stmt->close();
+				return -1;
+			} else {
+				$stmt->close();
+				return $db->lastInsertRowid();
+			}
+		}
+	}
+	
+	function saveCameraPreviewSize($db,$idCi,$w,$h) {
+		saveCameraSize($db,$idCi,"preview_resolutions",$w,$h);
+	}
+	
+	function saveCameraPictureSize($db,$idCi,$w,$h) {
+		saveCameraSize($db,$idCi,"picture_resolutions",$w,$h);
+	}
+
 
 	function getQueryTable($db, $sql) {
 		$str = '<table>';
@@ -181,10 +211,12 @@
 		$idPi=saveNewPhoneInfo($db,$pi['os_codename'],$pi['os_release'],$pi['os_increment'],$pi['device'],$pi['model'],$pi['product']);
 			
 		foreach ($pi->camera_info as $ci) {
-			saveCameraInfo($db, $idPi, $ci['facing_id'], $ci['facing_string']);
+			$idCi = saveCameraInfo($db, $idPi, $ci['facing_id'], $ci['facing_string']);
 			foreach ($ci->preview_size as $size) {
+				saveCameraPreviewSize($db,$idCi,$size['w'],$size['h']);
 			}
 			foreach ($ci->picture_size as $size) {
+				saveCameraPictureSize($db,$idCi,$size['w'],$size['h']);
 			}
 			foreach ($ci->preview_format as $fmt) {
 			}
