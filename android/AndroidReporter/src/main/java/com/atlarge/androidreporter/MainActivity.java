@@ -25,6 +25,7 @@ import android.view.Menu;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -50,6 +51,7 @@ import javax.xml.transform.stream.StreamResult;
 
 
 public class MainActivity extends Activity {
+    private Button mActionButton = null;
     private TextView mOutputText = null;
     private ScrollView mScroller = null;
     private ProgressBar mProgressSend= null;
@@ -378,12 +380,15 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         mOutputText = (TextView)findViewById(R.id.OutputText);
-        mOutputText.setText("Press 'Run' to start...\n");
+        mOutputText.setText(String.format("Press '%s' to start...\n", getResources().getString(R.string.action_getdata)));
         mOutputText.setMovementMethod(new ScrollingMovementMethod());
 
         mScroller = (ScrollView)findViewById(R.id.Scroller);
 
         mProgressSend = (ProgressBar)findViewById(R.id.progressBarSend);
+
+        mActionButton = (Button)findViewById(R.id.ActionButton);
+        mActionButton.setText(getResources().getString(R.string.action_getdata));
     }
 
 
@@ -418,15 +423,8 @@ public class MainActivity extends Activity {
         }
     }
 
-    public void onRunButtonClick(View view) {
-        ensureHavePiInfo();
-    }
-
-    public void onSendButtonClick(View view) {
-        ensureHavePiInfo();
-
-        ConnectivityManager connMgr = (ConnectivityManager)
-        getSystemService(CONNECTIVITY_SERVICE);
+    public void sendPiInfo() {
+        ConnectivityManager connMgr = (ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
         NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
         if (networkInfo != null && networkInfo.isConnected()) {
             mProgressSend.setVisibility(View.VISIBLE);
@@ -434,7 +432,26 @@ public class MainActivity extends Activity {
             new DownloadWebpageTask().execute(mPi);
         } else {
             mProgressSend.setVisibility(View.INVISIBLE);
-            // display error
+            mOutputText.append("\nUnable to send: no network connectivity");
+        }
+    }
+
+    public void onRunButtonClick(View view) {
+        ensureHavePiInfo();
+    }
+
+    public void onSendButtonClick(View view) {
+        ensureHavePiInfo();
+
+    }
+
+    public void onActionButtonClick(View view) {
+        if (mPi==null) {
+            ensureHavePiInfo();
+            mOutputText.append(String.format("\nPress '%s' to send this data to the server...\n", getResources().getString(R.string.action_getdata)));
+            mActionButton.setText(getResources().getString(R.string.action_senddata));
+        } else {
+            sendPiInfo();
         }
     }
 
