@@ -1,53 +1,59 @@
 package com.atlarge.androidreporter;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.util.HashMap;
 import java.util.List;
 import java.util.LinkedList;
 import java.util.Collections;
 import java.util.Comparator;
 
+import android.graphics.ImageFormat;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.Activity;
-import android.os.Message;
 import android.text.method.ScrollingMovementMethod;
-import android.util.Log;
 import android.util.Xml;
 import android.view.Menu;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.view.View;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
+import org.xml.sax.SAXException;
 import org.xmlpull.v1.XmlSerializer;
 
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 
 public class MainActivity extends Activity {
-    private TextView outputText = null;
-    private ScrollView scroller = null;
+    private TextView mOutputText = null;
+    private ScrollView mScroller = null;
+    private ProgressBar mProgressSend= null;
+    private PhoneInfo mPi = null;
     private static final Comparator<Camera.Size> mSizeComparator = new Comparator<Camera.Size>() {
         public int compare(Camera.Size a, Camera.Size b) {
             return a.width - b.width;
@@ -71,71 +77,72 @@ public class MainActivity extends Activity {
             return new String(buffer);
         }
 
-        public String convertXMLFileToString(String xml)
-        {
-            try{
-                DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
-                org.w3c.dom.Document doc = documentBuilderFactory.newDocumentBuilder().parse(xml);
-                StringWriter stw = new StringWriter();
-                Transformer serializer = TransformerFactory.newInstance().newTransformer();
-                serializer.transform(new DOMSource(doc), new StreamResult(stw));
-                return stw.toString();
-            }
-            catch (Exception e) {
-                e.printStackTrace();
-            }
-            return null;
+        public String convertXMLFileToString(String xml) throws ParserConfigurationException, IOException, SAXException, TransformerException {
+            DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+            org.w3c.dom.Document doc = documentBuilderFactory.newDocumentBuilder().parse(xml);
+            StringWriter stw = new StringWriter();
+            Transformer serializer = TransformerFactory.newInstance().newTransformer();
+            serializer.transform(new DOMSource(doc), new StreamResult(stw));
+            return stw.toString();
         }
 
         // Given a URL, establishes an HttpUrlConnection and retrieves
         // the web page content as a InputStream, which it returns as
         // a string.
-        private String sendPhoneInfo(PhoneInfo pi) throws IOException {
-            InputStream is = null;
-            // Only display the first 500 characters of the retrieved
-            // web page content.
-            int len = 500;
+        private String sendPhoneInfo(PhoneInfo pi)  {
 
             try {
                 HttpClient client = new DefaultHttpClient();
                 HttpPost request = new HttpPost(getResources().getString(R.string.post_url));
-                List<NameValuePair> nameValuePairs = new LinkedList<NameValuePair>(5);
-                nameValuePairs.add(new BasicNameValuePair("xmldata", convertXMLFileToString(pi.toXml())));
+                List<NameValuePair> nameValuePairs = new LinkedList<NameValuePair>();
+                //nameValuePairs.add(new BasicNameValuePair("xmldata", convertXMLFileToString(pi.toXml())));
+                nameValuePairs.add(new BasicNameValuePair("xmldata", pi.toXml()));
                 request.setEntity(new UrlEncodedFormEntity(nameValuePairs));
-                //request.setHeader("User-Agent", sUserAgent);
-                //try {
-                    HttpResponse response = client.execute(request);
-                //} catch (IOException e) {
-//                    throw new Exception("Problem communicating with API", e);
-  //              }
 
+                try {
+                    HttpResponse httpResponse = client.execute(request);
 
-            } finally {
-                if (is != null) {
-                    is.close();
+                    InputStream inputStream = httpResponse.getEntity().getContent();
+                    InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                    StringBuilder stringBuilder = new StringBuilder();
+                    String bufferedStrChunk = null;
+                    while((bufferedStrChunk = bufferedReader.readLine()) != null){
+                        stringBuilder.append(bufferedStrChunk);
+                    }
+
+                    if (httpResponse.getStatusLine().getStatusCode() == 200) {
+                        return "Success\n" + stringBuilder.toString();
+                    } else {
+                        return "Failure\n: " + stringBuilder.toString();
+                    }
+                } catch (ClientProtocolException cpe) {
+                    return "Failure\n: " + cpe;
+                } catch (IOException ioe) {
+                    return "Failure\n: " + ioe;
                 }
+            } catch (Exception e) {
+                return "Failure\n: " + e;
             }
         }
 
         @Override
         protected String doInBackground(PhoneInfo... pis) {
-
             // params comes from the execute() call: params[0] is the url.
-            try {
-                return sendPhoneInfo(pis[0]);
-            } catch (IOException e) {
-                return "Unable to retrieve web page. URL may be invalid.";
-            }
+            return sendPhoneInfo(pis[0]);
         }
 
         // onPostExecute displays the results of the AsyncTask.
         @Override
         protected void onPostExecute(String result) {
-            textView.setText(result);
+            mOutputText.append("done. ");
+            mOutputText.append(result);
+            strollToTheEnd();
+            mProgressSend.setVisibility(View.INVISIBLE);
         }
     }
 
-    private class PhoneInfo {
+    private static class PhoneInfo {
         String mOsCodename = android.os.Build.VERSION.CODENAME;
         String mOsRelease = android.os.Build.VERSION.RELEASE;
         String mOsIncrement = android.os.Build.VERSION.INCREMENTAL;
@@ -146,15 +153,28 @@ public class MainActivity extends Activity {
 
         InfoAllCameras mInfoAllCameras = null;
 
-        private class InfoAllCameras {
+        private static class InfoAllCameras {
             int mNumCameras;
             List<InfoSingleCamera> mInfos = new LinkedList<InfoSingleCamera>();
 
-            private class InfoSingleCamera {
+            private static class InfoSingleCamera {
                 List<Camera.Size> mPictureSizes = null;
                 List<Camera.Size> mPreviewSizes = null;
+                List<Integer> mSupportedPreviewFormats = null;
+                List<Integer> mSupportedPictureFormats = null;
                 Camera.CameraInfo mCameraInfo = new Camera.CameraInfo();
+                static HashMap<Integer, String> mPictureFormatNames = null;
 
+                static {
+                    mPictureFormatNames = new HashMap<Integer, String>();
+                    mPictureFormatNames.put(ImageFormat.JPEG,       "JPEG");
+                    mPictureFormatNames.put(ImageFormat.NV16,       "NV16");
+                    mPictureFormatNames.put(ImageFormat.NV21,       "NV21");
+                    mPictureFormatNames.put(ImageFormat.RGB_565,    "RGB_565");
+                    mPictureFormatNames.put(ImageFormat.UNKNOWN,    "UNKNOWN");
+                    mPictureFormatNames.put(ImageFormat.YUY2,       "YUY2");
+                    mPictureFormatNames.put(ImageFormat.YV12,       "YV12");
+                }
                 private InfoSingleCamera(int cameraId){
                     Camera.getCameraInfo(cameraId, mCameraInfo);
                     Camera camera = Camera.open(cameraId);
@@ -163,6 +183,8 @@ public class MainActivity extends Activity {
                             Camera.Parameters params = camera.getParameters();
                             mPictureSizes = params.getSupportedPictureSizes();
                             mPreviewSizes = params.getSupportedPreviewSizes();
+                            mSupportedPreviewFormats = params.getSupportedPreviewFormats();
+                            mSupportedPictureFormats = params.getSupportedPictureFormats();
                         } finally {
                             camera.release();
                             camera=null;
@@ -183,55 +205,94 @@ public class MainActivity extends Activity {
                     return facingString;
                 }
 
+                private static void sbAppendSizeList(StringBuilder sb, List<Camera.Size> list) {
+                    String sep = "";
+                    for (Camera.Size sz : list) {
+                        sb.append(sep); sep=",";
+                        sb.append(String.format("%dx%d", sz.width, sz.height));
+                    }
+                }
+
+                private static void sbAppendIntList(StringBuilder sb, List<Integer> list) {
+                    String sep = "";
+                    for (Integer i : list) {
+                        sb.append(sep); sep=",";
+                        sb.append(String.format("%d", i));
+                    }
+                }
+
+                private static void sbAppendPictureFormatList(StringBuilder sb, List<Integer> list) {
+                    String sep = "";
+                    for (Integer i : list) {
+                        sb.append(sep); sep=",";
+                        String formatName;
+                        if ( (formatName = mPictureFormatNames.get(i)) != null ) {
+                            sb.append(String.format("%s(%d)", formatName, i));
+                        } else {
+                            sb.append(String.format("%d", formatName, i));
+                        }
+                    }
+                }
+
                 public String toString() {
                     StringBuilder sb = new StringBuilder();
 
                     sb.append(String.format("Facing: %s\n", cameraFacingString()));
 
-                    String sep;
-                    sep = "";
                     sb.append(String.format("Preview sizes: "));
-                    for (Camera.Size sz : mPreviewSizes) {
-                        sb.append(sep); sep=",";
-                        sb.append(String.format("%dx%d", sz.width, sz.height));
-                    }
+                    sbAppendSizeList(sb, mPreviewSizes);
                     sb.append("\n");
 
-                    sep = "";
                     sb.append(String.format("Picture sizes: "));
-                    for (Camera.Size sz : mPictureSizes) {
-                        sb.append(sep); sep=",";
-                        sb.append(String.format("%dx%d", sz.width, sz.height));
-                    }
+                    sbAppendSizeList(sb, mPictureSizes);
+                    sb.append("\n");
+
+                    sb.append(String.format("Preview formats: "));
+                    sbAppendPictureFormatList(sb, mSupportedPreviewFormats);
+                    sb.append("\n");
+
+                    sb.append(String.format("Picture formats: "));
+                    sbAppendPictureFormatList(sb, mSupportedPictureFormats);
+                    sb.append("\n");
 
                     return sb.toString();
+                }
+
+                private static void xmlAppendSizeList(XmlSerializer serializer, String name, List<Camera.Size> list) throws IOException {
+                    for (Camera.Size sz : list) {
+                        serializer.startTag("", name);
+                        try {
+                            serializer.attribute("", "w", String.valueOf(sz.width));
+                            serializer.attribute("", "h", String.valueOf(sz.height));
+                        } finally {
+                            serializer.endTag("", name);
+                        }
+                    }
+                }
+
+                private static void xmlAppendPictureFormatList(XmlSerializer serializer, String name, List<Integer> list) throws IOException  {
+                    for (Integer i : list) {
+                        serializer.startTag("", name);
+                        try {
+                            String formatName;
+                            if ( (formatName = mPictureFormatNames.get(i)) != null ) {
+                                serializer.attribute("", "name", formatName);
+                            }
+                            serializer.attribute("", "value", String.valueOf(i));
+                        } finally {
+                            serializer.endTag("", name);
+                        }
+                    }
                 }
 
                 public void addToXml(XmlSerializer serializer) throws IOException {
                     serializer.startTag("", "camera_info");
                     try{
                         serializer.attribute("", "facing", cameraFacingString());
-
-                        for (Camera.Size sz : mPreviewSizes) {
-                            serializer.startTag("", "preview_size");
-                            try {
-                                serializer.attribute("", "w", String.valueOf(sz.width));
-                                serializer.attribute("", "h", String.valueOf(sz.height));
-                            } finally {
-                                serializer.endTag("", "preview_size");
-                            }
-                        }
-
-                        for (Camera.Size sz : mPictureSizes) {
-                            serializer.startTag("", "picture_size");
-                            try {
-                                serializer.attribute("", "w", String.valueOf(sz.width));
-                                serializer.attribute("", "h", String.valueOf(sz.height));
-                            } finally {
-                                serializer.endTag("", "preview_size");
-                            }
-                        }
-
+                        xmlAppendSizeList(serializer, "preview_size", mPreviewSizes);
+                        xmlAppendSizeList(serializer, "picture_size", mPictureSizes);
+                        xmlAppendPictureFormatList(serializer, "preview_format", mSupportedPreviewFormats);
+                        xmlAppendPictureFormatList(serializer, "picture_format", mSupportedPictureFormats);
                     } finally {
                         serializer.endTag("", "camera_info");
                     }
@@ -316,12 +377,13 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        outputText = (TextView)findViewById(R.id.OutputText);
-        outputText.setText("Press 'Run' to start...\n");
-        outputText.setMovementMethod(new ScrollingMovementMethod());
+        mOutputText = (TextView)findViewById(R.id.OutputText);
+        mOutputText.setText("Press 'Run' to start...\n");
+        mOutputText.setMovementMethod(new ScrollingMovementMethod());
 
-        scroller = (ScrollView)findViewById(R.id.Scroller);
+        mScroller = (ScrollView)findViewById(R.id.Scroller);
 
+        mProgressSend = (ProgressBar)findViewById(R.id.progressBarSend);
     }
 
 
@@ -332,29 +394,46 @@ public class MainActivity extends Activity {
         return true;
     }
 
-    public void onRunButtonClick(View view) {
-        outputText.append("Started...\n");
-        {
-            PhoneInfo pi = new PhoneInfo();
-            outputText.append(pi.toString());
-        }
-        outputText.append("\nFinished!\n");
-
-        // Ensure scroll to end of text
-        scroller.post(new Runnable() {
+    private void strollToTheEnd() {
+        mScroller.post(new Runnable() {
             public void run() {
-                scroller.fullScroll(ScrollView.FOCUS_DOWN);
+                mScroller.fullScroll(ScrollView.FOCUS_DOWN);
             }
         });
     }
 
+    public void ensureHavePiInfo() {
+        if (mPi==null) {
+            mOutputText.append("Started...\n");
+            {
+                try {
+                    mPi = new PhoneInfo();
+                    mOutputText.append(mPi.toString());
+                } catch (Exception e) {
+                    mOutputText.append(String.format("\nError: %s %s", e.getMessage(), e.getCause()));
+                }
+            }
+            mOutputText.append("\nFinished\n");
+            strollToTheEnd();
+        }
+    }
+
+    public void onRunButtonClick(View view) {
+        ensureHavePiInfo();
+    }
+
     public void onSendButtonClick(View view) {
+        ensureHavePiInfo();
+
         ConnectivityManager connMgr = (ConnectivityManager)
-                getSystemService(CONNECTIVITY_SERVICE);
+        getSystemService(CONNECTIVITY_SERVICE);
         NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
         if (networkInfo != null && networkInfo.isConnected()) {
-            // fetch data
+            mProgressSend.setVisibility(View.VISIBLE);
+            mOutputText.append("Sending...");
+            new DownloadWebpageTask().execute(mPi);
         } else {
+            mProgressSend.setVisibility(View.INVISIBLE);
             // display error
         }
     }
