@@ -32,24 +32,28 @@
 			facing_id		INTEGER, 
 			facing_string	TEXT)"
 			);
-		createTable($db, "resolutions", "
+		createTable($db, "picsizes", "
 			(id integer PRIMARY KEY AUTOINCREMENT, 
 			w		INTEGER, 
 			h		INTEGER)"
+			);
+		createTable($db, "picformats", "
+			(id integer PRIMARY KEY, 
+			name		TEXT)"
 			);
 		createTable($db, "formats", "
 			(id integer PRIMARY KEY, 
 			name		TEXT)"
 			);
-		createTable($db, "preview_resolutions", "
+		createTable($db, "preview_sizes", "
 			(camera_id integer,
-			resolution_id integer, 
-			PRIMARY KEY (camera_id, resolution_id) )"
+			picsize_id integer, 
+			PRIMARY KEY (camera_id, picsize_id) )"
 			);
-		createTable($db, "picture_resolutions", "
+		createTable($db, "picture_sizes", "
 			(camera_id integer, 
-			resolution_id integer, 
-			PRIMARY KEY (camera_id, resolution_id) )"
+			picsize_id integer, 
+			PRIMARY KEY (camera_id, picsize_id) )"
 			);
 		createTable($db, "preview_formats", "
 			(camera_id integer, 
@@ -129,15 +133,15 @@
 		}
 	}
 
-	function getSizeId($db, $w, $h) {
-		$stmt = $db->prepare('SELECT id FROM resolutions WHERE (w=:w) AND (h=:h)');
+	function getPicSizeId($db, $w, $h) {
+		$stmt = $db->prepare('SELECT id FROM picsizes WHERE (w=:w) AND (h=:h)');
 		$stmt->bindValue(':w', intval($w), SQLITE3_INTEGER);
 		$stmt->bindValue(':h', intval($h), SQLITE3_INTEGER);
 		$qr = $stmt->execute();
 		if ( ($qr) && ($row = $qr->fetchArray())) {
 			return $row[0];
 		} else {
-			$stmt = $db->prepare('INSERT INTO resolutions (w,h) values (:w, :h)');
+			$stmt = $db->prepare('INSERT INTO picsizes (w,h) values (:w, :h)');
 			$stmt->bindValue(':w', intval($w), SQLITE3_INTEGER);
 			$stmt->bindValue(':h', intval($h), SQLITE3_INTEGER);
 			if (! $stmt->execute() ) {
@@ -150,14 +154,14 @@
 	}
 
 	function saveCameraSize($db,$idCi,$tableName,$w,$h) {
-		$sizeId = getSizeId($db, $w, $h);
-		$stmt = $db->prepare(sprintf("INSERT INTO %s (camera_id, resolution_id) values (:camera_id, :resolution_id)", $tableName));
+		$sizeId = getPicSizeId($db, $w, $h);
+		$stmt = $db->prepare(sprintf("INSERT INTO %s (camera_id, picsize_id) values (:camera_id, :picsize_id)", $tableName));
 		if ($stmt===false) {
 			// Prepare failed
 			return -1;
 		} else {
 			$stmt->bindValue(':camera_id', 		$idCi, 		SQLITE3_INTEGER);
-			$stmt->bindValue(':resolution_id', 	$sizeId, 	SQLITE3_INTEGER);
+			$stmt->bindValue(':picsize_id', 	$sizeId, 	SQLITE3_INTEGER);
 			$res = $stmt->execute();
 			if (! $res ) {
 				// Insert failed
@@ -171,13 +175,60 @@
 	}
 	
 	function saveCameraPreviewSize($db,$idCi,$w,$h) {
-		saveCameraSize($db,$idCi,"preview_resolutions",$w,$h);
+		saveCameraSize($db,$idCi,"preview_sizes",$w,$h);
 	}
 	
 	function saveCameraPictureSize($db,$idCi,$w,$h) {
-		saveCameraSize($db,$idCi,"picture_resolutions",$w,$h);
+		saveCameraSize($db,$idCi,"picture_sizes",$w,$h);
 	}
 
+	function getPicFormatId($db, $id, $name) {
+		$stmt = $db->prepare('SELECT id FROM picformats WHERE (id=:id)');
+		$stmt->bindValue(':id', intval($id), SQLITE3_INTEGER);
+		$qr = $stmt->execute();
+		if ( ($qr) && ($row = $qr->fetchArray())) {
+			return $id;
+		} else {
+			$stmt = $db->prepare('INSERT INTO picformats (id,name) values (:id, :name)');
+			$stmt->bindValue(':id', intval($id), SQLITE3_INTEGER);
+			$stmt->bindValue(':name', $name, SQLITE3_INTEGER);
+			if (! $stmt->execute() ) {
+				// Insert failed
+				return -1;
+			} else {
+				return $db->lastInsertRowid();
+			}
+		}
+	}
+
+	function saveCameraFormat($db,$idCi,$tableName,$w,$h) {
+		$formatId = getPicFormatId($db, $w, $h);
+		$stmt = $db->prepare(sprintf("INSERT INTO %s (camera_id, format_id) values (:camera_id, :format_id)", $tableName));
+		if ($stmt===false) {
+			// Prepare failed
+			return -1;
+		} else {
+			$stmt->bindValue(':camera_id', 	$idCi, 		SQLITE3_INTEGER);
+			$stmt->bindValue(':format_id', 	$formatId, 	SQLITE3_INTEGER);
+			$res = $stmt->execute();
+			if (! $res ) {
+				// Insert failed
+				$stmt->close();
+				return -1;
+			} else {
+				$stmt->close();
+				return $db->lastInsertRowid();
+			}
+		}
+	}
+
+	function saveCameraPreviewFormat($db,$idCi,$id,$name) {
+		saveCameraFormat($db,$idCi,"preview_formats",$id,$name);
+	}
+	
+	function saveCameraPictureFormat($db,$idCi,$id,$name) {
+		saveCameraFormat($db,$idCi,"picture_formats",$id,$name);
+	}
 
 	function getQueryTable($db, $sql) {
 		$str = '<table>';
@@ -197,7 +248,6 @@
 
 	// Parse XML
 	if (isset($_POST['xmldata'])) {
-		printf("<p/>Saving new data...\n");
 		$output = 
 			print_r ( $_REQUEST, true )
 			. print_r ( getallheaders (  ), true )
@@ -212,6 +262,7 @@
 			
 		foreach ($pi->camera_info as $ci) {
 			$idCi = saveCameraInfo($db, $idPi, $ci['facing_id'], $ci['facing_string']);
+			
 			foreach ($ci->preview_size as $size) {
 				saveCameraPreviewSize($db,$idCi,$size['w'],$size['h']);
 			}
@@ -219,17 +270,20 @@
 				saveCameraPictureSize($db,$idCi,$size['w'],$size['h']);
 			}
 			foreach ($ci->preview_format as $fmt) {
+				$name = isset($size['name'])?$size['name']:"";
+				saveCameraPreviewFormat($db,$idCi,$fmt['value'],$name);
 			}
 			foreach ($ci->picture_format as $fmt) {
+				$name = isset($size['name'])?$size['name']:"";
+				saveCameraPreviewFormat($db,$idCi,$fmt['value'],$name);
 			}
-			
 		}
+		printf("Data saved, thank you!");
+		http_response_code (202);
 	} else {
 		//~ phpinfo();
 		printf("<p/>Showing old data...\n");
 		print(getQueryTable($db, 'select * from phones'));
 	}
-
-	echo "<p/>done";
 ?>
 

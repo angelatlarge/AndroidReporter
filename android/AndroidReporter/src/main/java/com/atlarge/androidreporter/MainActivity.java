@@ -111,8 +111,8 @@ public class MainActivity extends Activity {
                         stringBuilder.append(bufferedStrChunk);
                     }
 
-                    if (httpResponse.getStatusLine().getStatusCode() == 200) {
-                        return "Success\n" + stringBuilder.toString();
+                    if (httpResponse.getStatusLine().getStatusCode() == 202) {
+                        return "Success, server said:\n" + stringBuilder.toString();
                     } else {
                         return "Failure\n: " + stringBuilder.toString();
                     }
@@ -253,7 +253,6 @@ public class MainActivity extends Activity {
 
                     sb.append(String.format("Picture formats: "));
                     sbAppendPictureFormatList(sb, mSupportedPictureFormats);
-                    sb.append("\n");
 
                     return sb.toString();
                 }
@@ -414,7 +413,7 @@ public class MainActivity extends Activity {
                     mOutputText.append(String.format("\nError: %s %s", e.getMessage(), e.getCause()));
                 }
             }
-            mOutputText.append("\nFinished\n");
+            mOutputText.append("\nFinished");
             strollToTheEnd();
         }
     }
@@ -431,7 +430,7 @@ public class MainActivity extends Activity {
         NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
         if (networkInfo != null && networkInfo.isConnected()) {
             mProgressSend.setVisibility(View.VISIBLE);
-            mOutputText.append("Sending...");
+            mOutputText.append("\nSending...");
             new DownloadWebpageTask().execute(mPi);
         } else {
             mProgressSend.setVisibility(View.INVISIBLE);
