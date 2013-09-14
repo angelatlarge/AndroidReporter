@@ -13,6 +13,7 @@ import java.util.LinkedList;
 import java.util.Collections;
 import java.util.Comparator;
 
+import android.app.AlertDialog;
 import android.graphics.ImageFormat;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -409,7 +410,7 @@ public class MainActivity extends Activity {
 
     public void ensureHavePiInfo() {
         if (mPi==null) {
-            mOutputText.append("Started...\n");
+            mOutputText.append("Retrieving phone specs...\n");
             {
                 try {
                     mPi = new PhoneInfo();
@@ -429,10 +430,13 @@ public class MainActivity extends Activity {
         if (networkInfo != null && networkInfo.isConnected()) {
             mProgressSend.setVisibility(View.VISIBLE);
             mOutputText.append("\nSending...");
+            strollToTheEnd();
             new DownloadWebpageTask().execute(mPi);
         } else {
             mProgressSend.setVisibility(View.INVISIBLE);
             mOutputText.append("\nUnable to send: no network connectivity");
+            strollToTheEnd();
+            new AlertDialog.Builder(this).setMessage("Unable to send: no network connectivity").show();
         }
     }
 
@@ -449,6 +453,7 @@ public class MainActivity extends Activity {
         if (mPi==null) {
             ensureHavePiInfo();
             mOutputText.append(String.format("\nPress '%s' to send this data to the server...\n", getResources().getString(R.string.action_getdata)));
+            strollToTheEnd();
             mActionButton.setText(getResources().getString(R.string.action_senddata));
         } else {
             sendPiInfo();

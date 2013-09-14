@@ -21,6 +21,7 @@
                 android:layout_height="wrap_content"
                 android:text="Run..."
                 android:onClick="onRunButtonClick"
+                android:visibility="gone"
                 />
 
         <Button
@@ -29,6 +30,7 @@
                 android:layout_height="wrap_content"
                 android:text="Send..."
                 android:onClick="onSendButtonClick"
+                android:visibility="gone"
                 />
         <Button
                 android:id="@+id/ActionButton"
