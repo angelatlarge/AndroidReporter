@@ -1,4 +1,3 @@
-
 <?php
 	function createTable($db, $tableName, $sqlDef) {
 		$results = $db->query(sprintf("SELECT name FROM sqlite_master WHERE type='table' AND name='%s'", $tableName));
@@ -133,13 +132,21 @@
 		}
 	}
 
-	function getPicSizeId($db, $w, $h) {
+	function findPicSizeId($db, $w, $h) {
 		$stmt = $db->prepare('SELECT id FROM picsizes WHERE (w=:w) AND (h=:h)');
 		$stmt->bindValue(':w', intval($w), SQLITE3_INTEGER);
 		$stmt->bindValue(':h', intval($h), SQLITE3_INTEGER);
 		$qr = $stmt->execute();
 		if ( ($qr) && ($row = $qr->fetchArray())) {
 			return $row[0];
+		} else {
+			return -1;
+		}
+	}
+
+	function getPicSizeId($db, $w, $h) {
+		if ( ($picSizeId = findPicSizeId($db, $w, $h)) >= 0) {
+			return $picSizeId;
 		} else {
 			$stmt = $db->prepare('INSERT INTO picsizes (w,h) values (:w, :h)');
 			$stmt->bindValue(':w', intval($w), SQLITE3_INTEGER);
@@ -242,22 +249,79 @@
 		}
 		return $str;
 	}
-	
-	$db = new SQLite3('./db/ar.db');
-	createAllTables($db);
 
-	// Parse XML
-	if (isset($_POST['xmldata'])) {
-		$output = 
-			print_r ( $_REQUEST, true )
-			. print_r ( getallheaders (  ), true )
-			. print_r ( $_SERVER, true )
-			//~ . print_r ( $_FILES, true )
-			;
+	function doesXmlCameraSizeDataExist($db,$cameraId, $tableName, $w, $h) {
+		$picSizeId = findPicSizeId($db, $w, $h);
+		if ($picSizeId < 0) {
+			return false;
+		} else {
+			$stmt = $db->prepare('SELECT id from ' . $tableName . 'where
+				    (camera_id		=:camera_id)
+				and (picsize_id		=:picsize_id)');
+			$stmt->bindValue(':camera_id', 	intval($cameraId), 		SQLITE3_INTEGER);
+			$stmt->bindValue(':picsize_id', intval($picSizeId), 	SQLITE3_INTEGER);
+			if ( ($res) && ($row = $qr->fetchArray())) {
+				return true;
+			} else {
+				return false;
+			}
+		}
+	}
+
+	function doesXmlCameraDataExist($db,$idPi,$facingId,$facingString) {
+		$stmt = $db->prepare('SELECT id from phone_cameras where
+				(facing_id		=:facing_id)');
+		$stmt->bindValue(':facing_id', 		intval($facingId), 		SQLITE3_INTEGER);
+		$res = $stmt->execute();
+		if ( ($res) && ($row = $qr->fetchArray())) {
+			$cameraId = $row[0];
 			
-		file_put_contents ( './db/output.txt',  $output);
-	
-		$pi = new SimpleXMLElement($_POST['xmldata']);
+			$result = false;
+			// Now check resolutions for this camera
+			foreach ($ci->preview_size as $size) {
+				$result |= doesXmlCameraSizeDataExist($db,$cameraId,'preview_sizes',$size['w'],$size['h']);
+			}
+			foreach ($ci->picture_size as $size) {
+				$result |= doesXmlCameraSizeDataExist($db,$cameraId,'picture_sizes',$size['w'],$size['h']);
+			}
+		} else {
+			return false;
+		}
+		
+		
+	}
+
+	function doesXmlPhoneDataExist($db,$pi) {
+		// Get the phone info for this data
+		$stmt = $db->prepare('SELECT id from phones where
+			    (os_codename	=:os_codename)
+			and (os_release		=:os_release
+			and (os_increment 	=:os_increment
+			and (device		 	=:device
+			and (model		 	=:model
+			and (product		=:product)');
+		$stmt->bindValue(':os_codename', 	$pi['os_codename'], 	SQLITE3_TEXT);
+		$stmt->bindValue(':os_release', 	$pi['os_release'], 		SQLITE3_TEXT);
+		$stmt->bindValue(':os_increment', 	$pi['os_increment'], 	SQLITE3_TEXT);
+		$stmt->bindValue(':device', 		$pi['device'], 			SQLITE3_TEXT);
+		$stmt->bindValue(':model',			$pi['model'], 			SQLITE3_TEXT);
+		$stmt->bindValue(':product',		$pi['product'], 		SQLITE3_TEXT);
+		$res = $stmt->execute();
+		if ( ($res) && ($row = $qr->fetchArray())) {
+			$phoneId = $row[0];
+			
+			$result = false;
+			foreach ($pi->camera_info as $ci) {
+				$result |= doesXmlCameraDataExist($db, $idPi, $ci['facing_id'], $ci['facing_string']);
+			}
+			return $result;
+		} else {
+			return false;
+		}
+		
+	}
+
+	function saveXmlPhoneData($db,$pi) {
 		$idPi=saveNewPhoneInfo($db,$pi['os_codename'],$pi['os_release'],$pi['os_increment'],$pi['device'],$pi['model'],$pi['product']);
 			
 		foreach ($pi->camera_info as $ci) {
@@ -278,8 +342,27 @@
 				saveCameraPreviewFormat($db,$idCi,$fmt['value'],$name);
 			}
 		}
-		printf("Data saved, thank you!");
+	}
+	
+	
+	$db = new SQLite3('./db/ar.db');
+	createAllTables($db);
+
+	// Parse XML
+	if (isset($_POST['xmldata'])) {
+		$output = 
+			print_r ( $_REQUEST, true )
+			. print_r ( getallheaders (  ), true )
+			. print_r ( $_SERVER, true )
+			//~ . print_r ( $_FILES, true )
+			;
+			
+		//~ file_put_contents ( './db/output.txt',  $output);
+	
+		$pi = new SimpleXMLElement($_POST['xmldata']);
+		saveXmlPhoneData($db, $pi);
 		http_response_code (202);
+		printf("Data saved, thank you!");
 	} else {
 		//~ phpinfo();
 		printf("<p/>Showing old data...\n");
