@@ -255,12 +255,13 @@
 		if ($picSizeId < 0) {
 			return false;
 		} else {
-			$stmt = $db->prepare('SELECT id from ' . $tableName . 'where
+			$stmt = $db->prepare('SELECT * from ' . $tableName . ' where
 				    (camera_id		=:camera_id)
 				and (picsize_id		=:picsize_id)');
 			$stmt->bindValue(':camera_id', 	intval($cameraId), 		SQLITE3_INTEGER);
 			$stmt->bindValue(':picsize_id', intval($picSizeId), 	SQLITE3_INTEGER);
-			if ( ($res) && ($row = $qr->fetchArray())) {
+			$res = $stmt->execute();
+			if ( ($res) && ($row = $res->fetchArray())) {
 				return true;
 			} else {
 				return false;
@@ -268,12 +269,12 @@
 		}
 	}
 
-	function doesXmlCameraDataExist($db,$idPi,$facingId,$facingString) {
+	function doesXmlCameraDataExist($db,$idPi,$ci) {
 		$stmt = $db->prepare('SELECT id from phone_cameras where
 				(facing_id		=:facing_id)');
-		$stmt->bindValue(':facing_id', 		intval($facingId), 		SQLITE3_INTEGER);
+		$stmt->bindValue(':facing_id', 		intval($ci['facing_id']), 		SQLITE3_INTEGER);
 		$res = $stmt->execute();
-		if ( ($res) && ($row = $qr->fetchArray())) {
+		if ( ($res) && ($row = $res->fetchArray())) {
 			$cameraId = $row[0];
 			
 			$result = false;
@@ -284,6 +285,7 @@
 			foreach ($ci->picture_size as $size) {
 				$result |= doesXmlCameraSizeDataExist($db,$cameraId,'picture_sizes',$size['w'],$size['h']);
 			}
+			return $result;
 		} else {
 			return false;
 		}
@@ -295,10 +297,10 @@
 		// Get the phone info for this data
 		$stmt = $db->prepare('SELECT id from phones where
 			    (os_codename	=:os_codename)
-			and (os_release		=:os_release
-			and (os_increment 	=:os_increment
-			and (device		 	=:device
-			and (model		 	=:model
+			and (os_release		=:os_release)
+			and (os_increment 	=:os_increment)
+			and (device		 	=:device)
+			and (model		 	=:model)
 			and (product		=:product)');
 		$stmt->bindValue(':os_codename', 	$pi['os_codename'], 	SQLITE3_TEXT);
 		$stmt->bindValue(':os_release', 	$pi['os_release'], 		SQLITE3_TEXT);
@@ -307,12 +309,12 @@
 		$stmt->bindValue(':model',			$pi['model'], 			SQLITE3_TEXT);
 		$stmt->bindValue(':product',		$pi['product'], 		SQLITE3_TEXT);
 		$res = $stmt->execute();
-		if ( ($res) && ($row = $qr->fetchArray())) {
+		if ( ($res) && ($row = $res->fetchArray())) {
 			$phoneId = $row[0];
 			
 			$result = false;
 			foreach ($pi->camera_info as $ci) {
-				$result |= doesXmlCameraDataExist($db, $idPi, $ci['facing_id'], $ci['facing_string']);
+				$result |= doesXmlCameraDataExist($db, $phoneId, $ci);
 			}
 			return $result;
 		} else {
@@ -360,9 +362,14 @@
 		//~ file_put_contents ( './db/output.txt',  $output);
 	
 		$pi = new SimpleXMLElement($_POST['xmldata']);
-		saveXmlPhoneData($db, $pi);
-		http_response_code (202);
-		printf("Data saved, thank you!");
+		if (doesXmlPhoneDataExist($db, $pi)) {
+			http_response_code (202);
+			printf("Verified existing data, thank you!");
+		} else {
+			saveXmlPhoneData($db, $pi);
+			http_response_code (202);
+			printf("Data saved, thank you!");
+		}
 	} else {
 		//~ phpinfo();
 		printf("<p/>Showing old data...\n");
