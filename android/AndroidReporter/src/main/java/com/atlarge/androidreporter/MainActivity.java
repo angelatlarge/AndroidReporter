@@ -288,7 +288,8 @@ public class MainActivity extends Activity {
                 public void addToXml(XmlSerializer serializer) throws IOException {
                     serializer.startTag("", "camera_info");
                     try{
-                        serializer.attribute("", "facing", cameraFacingString());
+                        serializer.attribute("", "facing_id", String.valueOf(mCameraInfo.facing));
+                        serializer.attribute("", "facing_string", cameraFacingString());
                         xmlAppendSizeList(serializer, "preview_size", mPreviewSizes);
                         xmlAppendSizeList(serializer, "picture_size", mPictureSizes);
                         xmlAppendPictureFormatList(serializer, "preview_format", mSupportedPreviewFormats);

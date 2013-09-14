@@ -28,7 +28,8 @@
 			);
 		createTable($db, "phone_cameras", "
 			(id integer PRIMARY KEY AUTOINCREMENT, 
-			facing_code		INTEGER, 
+			phone_id		INTEGER, 
+			facing_id		INTEGER, 
 			facing_string	TEXT)"
 			);
 		createTable($db, "resolutions", "
@@ -43,26 +44,26 @@
 		createTable($db, "preview_resolutions", "
 			(camera_id integer,
 			resolution_id integer, 
-			PRIMARY KEY (phone_id, resolution_id) )"
+			PRIMARY KEY (camera_id, resolution_id) )"
 			);
 		createTable($db, "picture_resolutions", "
 			(camera_id integer, 
 			resolution_id integer, 
-			PRIMARY KEY (phone_id, resolution_id) )"
+			PRIMARY KEY (camera_id, resolution_id) )"
 			);
 		createTable($db, "preview_formats", "
 			(camera_id integer, 
 			format_id integer, 
-			PRIMARY KEY (phone_id, format_id) )"
+			PRIMARY KEY (camera_id, format_id) )"
 			);
 		createTable($db, "picture_formats", "
 			(camera_id integer, 
 			format_id integer, 
-			PRIMARY KEY (phone_id, format_id) )"
+			PRIMARY KEY (camera_id, format_id) )"
 			);
 	}
 	
-	function insertNewPhoneInfo($db,$os_codename,$os_release,$os_increment,$device,$model,$product) {
+	function saveNewPhoneInfo($db,$os_codename,$os_release,$os_increment,$device,$model,$product) {
 			$stmt = $db->prepare('INSERT INTO phones
 				(os_codename		
 				,os_release	 	
@@ -97,10 +98,37 @@
 					$stmt->close();
 					return $db->lastInsertRowid();
 				}
-			}
-			
+			}			
 	}
-	
+
+	function saveCameraInfo($db,$idPi,$facingId,$facingString) {
+			$stmt = $db->prepare('INSERT INTO phone_cameras
+				(phone_id		
+				,facing_id		
+				,facing_string)
+				VALUES (
+				:phone_id		
+				,:facing_id		
+				,:facing_string)');
+			if ($stmt===false) {
+				// Prepare failed
+				return -1;
+			} else {
+				$stmt->bindValue(':phone_id', 		$idPi, 			SQLITE3_INTEGER);
+				$stmt->bindValue(':facing_id', 		$facingId, 		SQLITE3_INTEGER);
+				$stmt->bindValue(':facing_string', 	$facingString,	SQLITE3_TEXT);
+				$res = $stmt->execute();
+				if (! $res ) {
+					// Insert failed
+					$stmt->close();
+					return -1;
+				} else {
+					$stmt->close();
+					return $db->lastInsertRowid();
+				}
+			}
+	}
+
 	function getSizeId($db, $w, $h) {
 		$stmt = $db->prepare('SELECT id FROM resolutions WHERE (w=:w) AND (h=:h)');
 		$stmt->bindValue(':w', $w, SQLITE3_INTEGER);
@@ -124,7 +152,7 @@
 	function getQueryTable($db, $sql) {
 		$str = '<table>';
 		$results = $db->query($sql);
-		while ($row = $results->fetchArray()) {
+		while ($row = $results->fetchArray(SQLITE3_ASSOC)) {
 			$str .= '<tr>';
 			foreach ($row as $d) {
 				$str .= '<td>' . $d . '</td>';
@@ -134,7 +162,7 @@
 		return $str;
 	}
 	
-	$db = new SQLite3('./db/test.db');
+	$db = new SQLite3('./db/ar.db');
 	createAllTables($db);
 
 	// Parse XML
@@ -150,9 +178,10 @@
 		file_put_contents ( './db/output.txt',  $output);
 	
 		$pi = new SimpleXMLElement($_POST['xmldata']);
-		$idPi=insertNewPhoneInfo($db,$pi['os_codename'],$pi['os_release'],$pi['os_increment'],$pi['device'],$pi['model'],$pi['product']);
+		$idPi=saveNewPhoneInfo($db,$pi['os_codename'],$pi['os_release'],$pi['os_increment'],$pi['device'],$pi['model'],$pi['product']);
 			
 		foreach ($pi->camera_info as $ci) {
+			saveCameraInfo($db, $idPi, $ci['facing_id'], $ci['facing_string']);
 			foreach ($ci->preview_size as $size) {
 			}
 			foreach ($ci->picture_size as $size) {
