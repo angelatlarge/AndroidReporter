@@ -40,10 +40,6 @@
 			(id integer PRIMARY KEY, 
 			name		TEXT)"
 			);
-		createTable($db, "formats", "
-			(id integer PRIMARY KEY, 
-			name		TEXT)"
-			);
 		createTable($db, "preview_sizes", "
 			(camera_id integer,
 			picsize_id integer, 
@@ -269,6 +265,27 @@
 		}
 	}
 
+	function doesXmlCameraFormatDataExist($db,$cameraId, $tableName, $formatId) {
+		$stmt = $db->prepare('SELECT id FROM picformats WHERE (id=:id)');
+		$stmt->bindValue(':id', intval($formatId), SQLITE3_INTEGER);
+		$qr = $stmt->execute();
+		if ( ($qr) && ($row = $qr->fetchArray())) {
+			$stmt = $db->prepare('SELECT * from ' . $tableName . ' where
+				    (camera_id		=:camera_id)
+				and (format_id		=:format_id)');
+			$stmt->bindValue(':camera_id', 	intval($cameraId), 		SQLITE3_INTEGER);
+			$stmt->bindValue(':format_id', intval($formatId), 		SQLITE3_INTEGER);
+			$res = $stmt->execute();
+			if ( ($res) && ($row = $res->fetchArray())) {
+				return true;
+			} else {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+
 	function doesXmlCameraDataExist($db,$idPi,$ci) {
 		$stmt = $db->prepare('SELECT id from phone_cameras where
 				(facing_id		=:facing_id)');
@@ -285,12 +302,17 @@
 			foreach ($ci->picture_size as $size) {
 				$result |= doesXmlCameraSizeDataExist($db,$cameraId,'picture_sizes',$size['w'],$size['h']);
 			}
+			// Now check the formats for this camera
+			foreach ($ci->preview_format as $fmt) {
+				$result |= doesXmlCameraFormatDataExist($db,$cameraId,"preview_formats",$fmt['value']);
+			}
+			foreach ($ci->picture_format as $fmt) {
+				$result |= doesXmlCameraFormatDataExist($db,$cameraId,"picture_formats",$fmt['value']);
+			}
 			return $result;
 		} else {
 			return false;
 		}
-		
-		
 	}
 
 	function doesXmlPhoneDataExist($db,$pi) {
@@ -364,7 +386,7 @@
 		$pi = new SimpleXMLElement($_POST['xmldata']);
 		if (doesXmlPhoneDataExist($db, $pi)) {
 			http_response_code (202);
-			printf("Verified existing data, thank you!");
+			printf("Verified data, thank you!");
 		} else {
 			saveXmlPhoneData($db, $pi);
 			http_response_code (202);
