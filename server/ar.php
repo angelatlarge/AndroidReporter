@@ -395,22 +395,24 @@
 		}
 		
 		// Prepare the large uber query
-		$uberQuery = 'select
+		$uberQuery = "select
 			os_codename		
 			,os_release	 	
 			,os_increment 	
 			,device		 	
 			,model		 	
 			,product	
-			,facing_id';
+			,facing_id\n";
 			
-		$typesArray = array('preview_sizes'=>'v', 'picture_sizes'=>'v');
+		$typesArray = array('preview_sizes'=>'v', 'picture_sizes'=>'p');
 		foreach ($typesArray as $tableName => $fieldPrefix) {
-			foreach ($sizesArray as $sizeString)
-			$uberQuery .= ',' . sprintf($sizeString, $tableName, $tableName, $tableName, $fieldPrefix);
+			//~ print "<p/>$tableName";
+			foreach ($sizesArray as $sizeString) {
+				$uberQuery .= ",\n" . sprintf($sizeString, $tableName, $tableName, $tableName, $fieldPrefix);
+			}
 		}
-		$uberQuery .= ' from phones left outer join phone_cameras on phones.id==phone_cameras.phone_id';
-		//~ print $uberQuery;
+		$uberQuery .= "\n from phones left outer join phone_cameras on phones.id==phone_cameras.phone_id";
+		//~ print "<pre>$uberQuery</pre>";
 		//~ return $uberQuery;
 		$result = '<table class="bordertable">';
 		
@@ -437,8 +439,28 @@
 		$result .= $sizesHeaders;
 		$result .= $sizesHeaders;
 		$result .= "</tr>\n";
-		
-		$result .= getQueryAsHtmlTableRows($db, $uberQuery);
+
+		$uqRes = $db->query($uberQuery);
+		while ($row = $uqRes->fetchArray(SQLITE3_NUM)) {
+			$result .= "\n<tr>";
+			for ($i=0; $i<count($row); $i++) {
+				if ($i<7) {
+					// Rows before checkmarks
+					$result .= '<td>' . $row[$i] . '</td>';
+				} else {
+					// Checkmarks
+					if ($row[$i]>0) {
+						$result .= "<td>&#x2713;</td>";
+					} else {
+						$result .= "<td></td>";
+					}
+				}
+				
+			}
+			$result .= "</tr>";
+		}
+
+		//~ $result .= getQueryAsHtmlTableRows($db, $uberQuery);
 		
 		$result .= "</table>";
 		return $result;
@@ -473,6 +495,7 @@
 ?>
 <html>
 <head>
+	<title>Android Reporter</title>
 	<style>
 		body 	{ font-family: Georgia; } 	
 		h1, h2, h3, h4, h5	{ font-family: Arial; } 	
@@ -560,6 +583,20 @@
 	</style>
 </head>
 <body>
+<h1>The Android Reporter project</h1>
+<p/>To my knowledge, there is little information on 
+which phones/cameras support what resolutions 
+(see <a href="http://stackoverflow.com/questions/18515481/list-of-commonly-supported-camera-picture-sizes">here</a>)
+This project is an attempt to gather this information.
+
+<p/>How to help
+<ol>
+	<li/><a href="http://play.google.com/store/apps/details?id=com.atlarge.androidreporter">Install the app</a>
+	<li/>Run the app
+	<li/>View the results below
+</ol>
+
+<p/>Results so far:
 <?php
 		//~ phpinfo();
 		//~ printf("<p/>Showing old data...\n");
