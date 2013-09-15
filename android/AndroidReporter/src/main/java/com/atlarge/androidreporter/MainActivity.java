@@ -14,10 +14,13 @@ import java.util.Collections;
 import java.util.Comparator;
 
 import android.app.AlertDialog;
+import android.content.pm.PackageInfo;
+import android.content.res.Resources;
 import android.graphics.ImageFormat;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.app.Activity;
 import android.text.method.ScrollingMovementMethod;
@@ -114,10 +117,11 @@ public class MainActivity extends Activity {
                         stringBuilder.append(bufferedStrChunk);
                     }
 
-                    if (httpResponse.getStatusLine().getStatusCode() == 202) {
+                    int statusCode = httpResponse.getStatusLine().getStatusCode();
+                    if (statusCode == 202) {
                         return "Success, server said:\n" + stringBuilder.toString();
                     } else {
-                        return "Failure\n: " + stringBuilder.toString();
+                        return String.format("Failure (http code %d):\n", statusCode) + stringBuilder.toString();
                     }
                 } catch (ClientProtocolException cpe) {
                     return "Failure\n: " + cpe;
@@ -146,13 +150,18 @@ public class MainActivity extends Activity {
     }
 
     private static class PhoneInfo {
-        String mOsCodename = android.os.Build.VERSION.CODENAME;
-        String mOsRelease = android.os.Build.VERSION.RELEASE;
-        String mOsIncrement = android.os.Build.VERSION.INCREMENTAL;
-        String mApiLevel = android.os.Build.VERSION.SDK;
-        String mDevice = android.os.Build.DEVICE;
-        String mModel = android.os.Build.MODEL;
-        String mProduct = android.os.Build.PRODUCT;
+        static final String mOsCodename = android.os.Build.VERSION.CODENAME;
+        static final String mOsRelease = android.os.Build.VERSION.RELEASE;
+        static final String mOsIncrement = android.os.Build.VERSION.INCREMENTAL;
+        static final String mApiLevel = android.os.Build.VERSION.SDK;
+        static final String mDevice = android.os.Build.DEVICE;
+        static final String mModel = android.os.Build.MODEL;
+        static final String mProduct = android.os.Build.PRODUCT;
+        static final String mManufacturer = android.os.Build.MANUFACTURER;
+        static final String mBrand = android.os.Build.BRAND;
+        final String mPackageVersion;
+        final String mMessageVersion;
+
 
         InfoAllCameras mInfoAllCameras = null;
 
@@ -330,8 +339,10 @@ public class MainActivity extends Activity {
             }
         }
 
-        public PhoneInfo() {
+        public PhoneInfo(PackageInfo pInfo, Resources res) {
             mInfoAllCameras = new InfoAllCameras();
+            mPackageVersion = pInfo.versionName;
+            mMessageVersion = res.getString(R.string.xml_version);
         }
 
         public String toString() {
@@ -339,6 +350,7 @@ public class MainActivity extends Activity {
             sb.append(String.format("OS: %s %s %s\n", mOsCodename, mOsRelease, mOsIncrement));
             sb.append(String.format("OS API Level: %s\n", mApiLevel));
             sb.append(String.format("Device: %s\n", mDevice));
+            sb.append(String.format("Manufacturer/Brand: %s/%s\n", mManufacturer, mBrand));
             sb.append(String.format("Model (product): %s (%s)\n",mModel, mProduct));
             sb.append(mInfoAllCameras.toString());
             return sb.toString();
@@ -353,6 +365,8 @@ public class MainActivity extends Activity {
                 serializer.attribute("", "device", mDevice);
                 serializer.attribute("", "model", mModel);
                 serializer.attribute("", "product", mProduct);
+                serializer.attribute("", "manufacturer", mManufacturer);
+                serializer.attribute("", "brand", mBrand);
                 mInfoAllCameras.addToXml(serializer);
             } finally {
                 serializer.endTag("", "phone_info");
@@ -365,6 +379,13 @@ public class MainActivity extends Activity {
             try {
                 serializer.setOutput(writer);
                 serializer.startDocument("UTF-8", true);
+                serializer.startTag("", "version");
+                try {
+                    serializer.attribute("", "app", mPackageVersion);
+                    serializer.attribute("", "message", mMessageVersion);
+                } finally {
+                    serializer.endTag("", "version");
+                }
                 addToXml(serializer);
                 serializer.endDocument();
                 return writer.toString();
@@ -413,7 +434,7 @@ public class MainActivity extends Activity {
             mOutputText.append("Retrieving phone specs...\n");
             {
                 try {
-                    mPi = new PhoneInfo();
+                    mPi = new PhoneInfo(getPackageManager().getPackageInfo(getPackageName(), 0), getResources());
                     mOutputText.append(mPi.toString());
                 } catch (Exception e) {
                     mOutputText.append(String.format("\nError: %s %s", e.getMessage(), e.getCause()));
@@ -446,13 +467,12 @@ public class MainActivity extends Activity {
 
     public void onSendButtonClick(View view) {
         ensureHavePiInfo();
-
     }
 
     public void onActionButtonClick(View view) {
         if (mPi==null) {
             ensureHavePiInfo();
-            mOutputText.append(String.format("\nPress '%s' to send this data to the server...\n", getResources().getString(R.string.action_getdata)));
+            mOutputText.append(String.format("\nPress '%s' to send this data to the server...\n", getResources().getString(R.string.action_senddata)));
             strollToTheEnd();
             mActionButton.setText(getResources().getString(R.string.action_senddata));
         } else {

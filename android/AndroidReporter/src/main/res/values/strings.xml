@@ -3,9 +3,10 @@
 
     <string name="app_name">AndroidReporter</string>
     <string name="action_settings">Settings</string>
-    <string name="post_url_old">http://www.kirill.org</string>
-    <string name="post_url">http://192.168.242.142/ar.php</string>
-    <string name="action_getdata">Get data</string>
+    <string name="post_url">http://www.kirill.org/ar/ar.php</string>
+    <string name="post_url_test">http://192.168.242.142/ar.php</string>
+    <string name="action_getdata">Get Data</string>
     <string name="action_senddata">Send Data</string>
+    <string name="xml_version">1.2</string>
 
 </resources>
