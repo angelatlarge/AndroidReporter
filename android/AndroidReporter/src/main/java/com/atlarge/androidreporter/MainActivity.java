@@ -367,6 +367,14 @@ public class MainActivity extends Activity {
                 serializer.attribute("", "product", mProduct);
                 serializer.attribute("", "manufacturer", mManufacturer);
                 serializer.attribute("", "brand", mBrand);
+
+                serializer.startTag("", "version");
+                try {
+                    serializer.attribute("", "app", mPackageVersion);
+                    serializer.attribute("", "message", mMessageVersion);
+                } finally {
+                    serializer.endTag("", "version");
+                }
                 mInfoAllCameras.addToXml(serializer);
             } finally {
                 serializer.endTag("", "phone_info");
@@ -379,13 +387,6 @@ public class MainActivity extends Activity {
             try {
                 serializer.setOutput(writer);
                 serializer.startDocument("UTF-8", true);
-                serializer.startTag("", "version");
-                try {
-                    serializer.attribute("", "app", mPackageVersion);
-                    serializer.attribute("", "message", mMessageVersion);
-                } finally {
-                    serializer.endTag("", "version");
-                }
                 addToXml(serializer);
                 serializer.endDocument();
                 return writer.toString();
