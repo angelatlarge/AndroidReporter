@@ -453,7 +453,7 @@
 			}
 		}
 		$uberQuery .= "\n from phones left outer join phone_cameras on phones.id==phone_cameras.phone_id";
-		print "<pre>$uberQuery</pre>";
+		//~ print "<pre>$uberQuery</pre>";
 		//~ return $uberQuery;
 		$result = '<table class="bordertable">';
 		
@@ -638,8 +638,10 @@ This project is an attempt to gather this information.
 	<li/><a href="http://play.google.com/store/apps/details?id=com.atlarge.androidreporter">Install the app</a>
 	<li/>Run the app
 	<li/>View the results below
+
 </ol>
 
+<p/>You can find the source code for the app <a href="https://github.com/angelatlarge/AndroidReporter">here</a>
 <p/>Results so far:
 <?php
 		//~ phpinfo();
