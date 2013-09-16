@@ -603,7 +603,9 @@ This project is an attempt to gather this information.
 		//~ print(getQueryAsHtmlTable($db, 'select * from phones'));
 		print("\n");
 		print(getDisplayTableData($db));
-	}
 ?>
 </body>
 </html>
+<?php
+	}
+?>
