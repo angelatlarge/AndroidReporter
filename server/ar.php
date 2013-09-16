@@ -382,7 +382,7 @@
 	
 	function getDisplayTableData($db) {
 		// Get the sizes table
-		$sizesQuery = $db->prepare('SELECT id, w, h from picsizes');
+		$sizesQuery = $db->prepare('SELECT id, w, h from picsizes ORDER BY w,h');
 		$sizesResult = $sizesQuery->execute();
 		if (!$sizesResult) return false;
 
