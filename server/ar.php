@@ -34,7 +34,10 @@
 			os_increment 	TEXT, 
 			device		 	TEXT, 
 			model		 	TEXT, 
-			product		 	TEXT)"
+			product		 	TEXT,
+			manufacturer 	TEXT,
+			brand		 	TEXT
+			)"
 			);
 		createTable($db, "phone_cameras", "
 			(id integer PRIMARY KEY AUTOINCREMENT, 
@@ -72,15 +75,36 @@
 			PRIMARY KEY (camera_id, format_id) )"
 			);
 	}
+
+	function tableColumnExists($db, $tableName, $columnName) {
+		$results = $db->query(sprintf('pragma table_info(%s)', $tableName));
+		while ($row = $results->fetchArray(SQLITE3_NUM)) {
+			if (strcasecmp($row[1], $columnName)===0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function ensureDbUpToDate($db) {
+		createAllTables($db);
+		if (! tableColumnExists($db, 'phones', 'manufacturer'))
+			$db->query("ALTER TABLE phones ADD manufacturer TEXT");
+		if (! tableColumnExists($db, 'phones', 'brand'))
+			$db->query("ALTER TABLE phones ADD brand TEXT");
+	}
 	
-	function saveNewPhoneInfo($db,$os_codename,$os_release,$os_increment,$device,$model,$product) {
+	function saveNewPhoneInfo($db,$os_codename,$os_release,$os_increment,$device,$model,$product, $manufacturer, $brand) {
 		$stmt = $db->prepare('INSERT INTO phones
 			(os_codename		
 			,os_release	 	
 			,os_increment 	
 			,device		 	
 			,model		 	
-			,product)
+			,product
+			,manufacturer
+			,brand
+			)
 		VALUES
 			(:os_codename
 			,:os_release
@@ -88,6 +112,8 @@
 			,:device
 			,:model
 			,:product
+			,:manufacturer
+			,:brand
 			)');
 		if ($stmt===false) {
 			// Prepare failed
@@ -99,6 +125,8 @@
 			$stmt->bindValue(':device', 		$device, 		SQLITE3_TEXT);
 			$stmt->bindValue(':model', 			$model, 		SQLITE3_TEXT);
 			$stmt->bindValue(':product', 		$product, 		SQLITE3_TEXT);
+			$stmt->bindValue(':manufacturer', 	$manufacturer,	SQLITE3_TEXT);
+			$stmt->bindValue(':brand', 			$brand, 		SQLITE3_TEXT);
 			$res = $stmt->execute();
 			if (! $res ) {
 				// Insert failed
@@ -308,17 +336,17 @@
 			$result = false;
 			// Now check resolutions for this camera
 			foreach ($ci->preview_size as $size) {
-				$result |= doesXmlCameraSizeDataExist($db,$cameraId,'preview_sizes',$size['w'],$size['h']);
+				$result = $result || doesXmlCameraSizeDataExist($db,$cameraId,'preview_sizes',$size['w'],$size['h']);
 			}
 			foreach ($ci->picture_size as $size) {
-				$result |= doesXmlCameraSizeDataExist($db,$cameraId,'picture_sizes',$size['w'],$size['h']);
+				$result = $result || doesXmlCameraSizeDataExist($db,$cameraId,'picture_sizes',$size['w'],$size['h']);
 			}
 			// Now check the formats for this camera
 			foreach ($ci->preview_format as $fmt) {
-				$result |= doesXmlCameraFormatDataExist($db,$cameraId,"preview_formats",$fmt['value']);
+				$result = $result || doesXmlCameraFormatDataExist($db,$cameraId,"preview_formats",$fmt['value']);
 			}
 			foreach ($ci->picture_format as $fmt) {
-				$result |= doesXmlCameraFormatDataExist($db,$cameraId,"picture_formats",$fmt['value']);
+				$result = $result || doesXmlCameraFormatDataExist($db,$cameraId,"picture_formats",$fmt['value']);
 			}
 			return $result;
 		} else {
@@ -334,20 +362,29 @@
 			and (os_increment 	=:os_increment)
 			and (device		 	=:device)
 			and (model		 	=:model)
-			and (product		=:product)');
+			and (product		=:product)
+			and (product		=:product)
+			and (manufacturer	=:manufacturer)
+			and (brand			=:brand)
+			');
+			
+		$manufacturer = isset($pi['manufacturer'])?$pi['manufacturer']:"";
+		$brand = isset($pi['brand'])?$pi['brand']:"";
 		$stmt->bindValue(':os_codename', 	$pi['os_codename'], 	SQLITE3_TEXT);
 		$stmt->bindValue(':os_release', 	$pi['os_release'], 		SQLITE3_TEXT);
 		$stmt->bindValue(':os_increment', 	$pi['os_increment'], 	SQLITE3_TEXT);
 		$stmt->bindValue(':device', 		$pi['device'], 			SQLITE3_TEXT);
 		$stmt->bindValue(':model',			$pi['model'], 			SQLITE3_TEXT);
 		$stmt->bindValue(':product',		$pi['product'], 		SQLITE3_TEXT);
+		$stmt->bindValue(':manufacturer',	$manufacturer, 			SQLITE3_TEXT);
+		$stmt->bindValue(':brand',			$brand, 				SQLITE3_TEXT);
 		$res = $stmt->execute();
 		if ( ($res) && ($row = $res->fetchArray())) {
 			$phoneId = $row[0];
 			
 			$result = false;
 			foreach ($pi->camera_info as $ci) {
-				$result |= doesXmlCameraDataExist($db, $phoneId, $ci);
+				$result = $result || doesXmlCameraDataExist($db, $phoneId, $ci);
 			}
 			return $result;
 		} else {
@@ -357,7 +394,9 @@
 	}
 
 	function saveXmlPhoneData($db,$pi) {
-		$idPi=saveNewPhoneInfo($db,$pi['os_codename'],$pi['os_release'],$pi['os_increment'],$pi['device'],$pi['model'],$pi['product']);
+		$manufacturer = isset($pi['manufacturer'])?$pi['manufacturer']:"";
+		$brand = isset($pi['brand'])?$pi['brand']:"";
+		$idPi=saveNewPhoneInfo($db,$pi['os_codename'],$pi['os_release'],$pi['os_increment'],$pi['device'],$pi['model'],$pi['product'], $manufacturer, $brand);
 			
 		foreach ($pi->camera_info as $ci) {
 			$idCi = saveCameraInfo($db, $idPi, $ci['facing_id'], $ci['facing_string']);
@@ -402,28 +441,33 @@
 			,device		 	
 			,model		 	
 			,product	
-			,facing_id\n";
+			,manufacturer	
+			,brand	
+			,facing_id";
 			
 		$typesArray = array('preview_sizes'=>'v', 'picture_sizes'=>'p');
 		foreach ($typesArray as $tableName => $fieldPrefix) {
 			//~ print "<p/>$tableName";
 			foreach ($sizesArray as $sizeString) {
-				$uberQuery .= ",\n" . sprintf($sizeString, $tableName, $tableName, $tableName, $fieldPrefix);
+				$uberQuery .= "\n," . sprintf($sizeString, $tableName, $tableName, $tableName, $fieldPrefix);
 			}
 		}
 		$uberQuery .= "\n from phones left outer join phone_cameras on phones.id==phone_cameras.phone_id";
-		//~ print "<pre>$uberQuery</pre>";
+		print "<pre>$uberQuery</pre>";
 		//~ return $uberQuery;
 		$result = '<table class="bordertable">';
 		
+		$leftHeaders = 0;
 		$result .= "<tr>";
-		$result .= '<th rowspan="2">Codename</th>'		;
-		$result .= '<th rowspan="2">Release</th>'		;
-		$result .= '<th rowspan="2">Increment</th>'		;
-		$result .= '<th rowspan="2">Device</th>'		;
-		$result .= '<th rowspan="2">Model</th>'			;
-		$result .= '<th rowspan="2">Product</th>'		;
-		$result .= '<th rowspan="2">Cam Face</th>'		;
+		$result .= '<th rowspan="2">Codename</th>'				;	$leftHeaders++;
+		$result .= '<th rowspan="2">Release</th>'				;	$leftHeaders++;
+		$result .= '<th rowspan="2">Increment</th>'				;	$leftHeaders++;
+		$result .= '<th rowspan="2">Device</th>'				;	$leftHeaders++;
+		$result .= '<th rowspan="2">Model</th>'					;	$leftHeaders++;
+		$result .= '<th rowspan="2">Product</th>'				;	$leftHeaders++;
+		$result .= '<th rowspan="2">Make</th>'					;	$leftHeaders++;
+		$result .= '<th rowspan="2">Brand</th>'					;	$leftHeaders++;
+		$result .= '<th rowspan="2">Camera<br/>Facing</th>'		;	$leftHeaders++;
 		$result .= sprintf('<th colspan="%d">Preview</th>', $sizesCount);
 		$result .= sprintf('<th colspan="%d">Pictures</th>', $sizesCount);
 		$result .= "</tr>\n";
@@ -444,7 +488,7 @@
 		while ($row = $uqRes->fetchArray(SQLITE3_NUM)) {
 			$result .= "\n<tr>";
 			for ($i=0; $i<count($row); $i++) {
-				if ($i<7) {
+				if ($i<$leftHeaders) {
 					// Rows before checkmarks
 					$result .= '<td>' . $row[$i] . '</td>';
 				} else {
@@ -469,7 +513,7 @@
 	
 	$dbFilePath = getDbFilePath();
 	$db = new SQLite3($dbFilePath);
-	createAllTables($db);
+	ensureDbUpToDate($db);
 
 	// Parse XML
 	if (isset($_POST['xmldata'])) {
@@ -566,7 +610,7 @@
 				-ms-transform: rotate(-90deg);
 				-o-transform: rotate(-90deg);
 				transform: rotate(-90deg); 
-                width: 20px;
+                width: 12px;
                 margin-bottom: 10px;
                 white-space: nowrap;
 /*		
